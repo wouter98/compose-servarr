@@ -1,0 +1,162 @@
+version: "3.0"
+
+services:
+    plex:
+        container_name: plex
+        hostname: plex
+        image: lscr.io/linuxserver/plex:latest
+        ports:
+          - 32400:32400
+        volumes:
+          - plex_config:/config
+          - /storage/servarr/media:/media
+        environment:
+          - TZ=Europe/Amsterdam
+          - VERSION=docker
+        restart: unless-stopped
+        network_mode: host
+
+    gluetun:
+        container_name: gluetun
+        hostname: gluetun
+        image: qmcgaw/gluetun:latest
+        cap_add:
+          - NET_ADMIN
+        devices:
+          - /dev/net/tun:/dev/net/tun
+        ports:
+          # Gluetun ports
+          - 8888:8888/tcp
+          - 8388:8388/tcp
+          - 8388:8388/udp
+          # QBitTorrent ports
+          - 8080:8080/tcp
+          - 6881:6881/tcp
+          - 6881:6881/udp
+          - 9090:9090/tcp
+        volumes:
+          - gluetun:/gluetun
+        environment:
+          - VPN_SERVICE_PROVIDER=surfshark
+          - VPN_TYPE=wireguard
+          - WIREGUARD_PRIVATE_KEY=${WIREGUARD_PRIVATE_KEY}
+          - WIREGUARD_ADDRESS=${WIREGUARD_ADDRESS}
+          - TZ=Europe/Amsterdam
+        restart: unless-stopped
+
+    qbittorrent:
+        container_name: qbittorrent
+        image: lscr.io/linuxserver/qbittorrent:latest
+        volumes:
+          - qbittorrent_config:/config
+          - /storage/servarr/torrents:/data/torrents
+        environment:
+          - PUID=1000
+          - GUID=1000
+          - TZ=Europe/Amsterdam
+          - WEBUI_PORT=8080
+          - TORRENTING_PORT=6881
+          - DOCKER_MODS=arafatamim/linuxserver-io-mod-vuetorrent
+        restart: unless-stopped
+        network_mode: container:gluetun
+        depends_on:
+          - gluetun
+
+    sonarr:
+        container_name: sonarr
+        hostname: sonarr
+        image: lscr.io/linuxserver/sonarr:latest
+        ports:
+          - 8989:8989/tcp
+        volumes:
+          - sonarr_config:/config
+          - /storage/servarr:/data
+        environment:
+          - PUID=1000
+          - GUID=1000
+          - TZ=Europe/Amsterdam
+        restart: unless-stopped
+
+    radarr:
+        container_name: radarr
+        hostname: radarr
+        image: lscr.io/linuxserver/radarr:latest
+        ports:
+          - 7878:7878/tcp
+        volumes:
+          - radarr_config:/config
+          - /storage/servarr:/data
+        environment:
+          - PUID=1000
+          - GUID=1000
+          - TZ=Europe/Amsterdam
+        restart: unless-stopped
+
+    prowlarr:
+        container_name: prowlarr
+        hostname: prowlarr
+        image: lscr.io/linuxserver/prowlarr:latest
+        ports:
+          - 9696:9696/tcp
+        volumes:
+          - prowlarr_config:/config
+        environment:
+          - PUID=1000
+          - GUID=1000
+          - TZ=Europe/Amsterdam
+        restart: unless-stopped
+
+    decluttarr:
+        container_name: decluttarr
+        hostname: decluttarr
+        image: ghcr.io/manimatter/decluttarr:latest
+        environment:
+          - PUID=1000
+          - GUID=1000
+          - TZ=Europe/Amsterdam
+          - RADARR_URL=http://radarr:7878
+          - RADARR_KEY=${RADARR_KEY}
+          - SONARR_URL=http://sonarr:8989
+          - SONARR_KEY=${SONARR_KEY}
+          - QBITTORRENT_URL=http://gluetun:8080
+          - QBITTORRENT_USERNAME=${QBITTORRENT_USERNAME}
+          - QBITTORRENT_PASSWORD=${QBITTORRENT_PASSWORD}
+          - REMOVE_FAILED=True
+          - REMOVE_METADATA_MISSING=True
+          - REMOVE_MISSING_FILES=True
+          - REMOVE_STALLED=True
+          - PERMITTED_ATTEMPTS=3
+          - REMOVE_NO_FORMAT_UPGRADE=True
+          - REMOVE_ORPHANS=True
+        restart: unless-stopped
+
+    overseerr:
+        container_name: overseerr
+        hostname: overseerr
+        image: ghcr.io/hotio/overseerr
+        ports:
+          - 5055:5055/tcp
+        volumes:
+          - overseerr_config:/app/config
+        environment:
+          - LOG_LEVEL=debug
+          - TZ=Europe/Amsterdam
+          - PUID=1000
+          - PGID=1000
+        restart: unless-stopped
+
+volumes:
+    plex_config:
+        external: true
+    gluetun:
+        external: true
+    qbittorrent_config:
+        external: true
+    sonarr_config:
+        external: true
+    radarr_config:
+        external: true
+    prowlarr_config:
+        external: true
+    overseerr_config:
+        external: true
